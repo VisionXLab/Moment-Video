@@ -26,6 +26,9 @@
   <a href="https://huggingface.co/datasets/VisionXLab/Moment-Video">
     <img src="https://img.shields.io/badge/HuggingFace-Dataset-blue?style=flat&logo=huggingface" alt="HuggingFace data">
   </a>
+  <a href="https://moment-video.netlify.app/">
+    <img src="https://img.shields.io/badge/Project-Page-green?style=flat&logo=netlify" alt="Project Page">
+  </a>
 </p>
 
 <div align="center">
