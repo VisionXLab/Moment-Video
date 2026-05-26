@@ -5,7 +5,7 @@
 [Xiaolin Liu](https://orcid.org/0009-0004-5440-5908)\*,
 [Yilun Zhu](https://scholar.google.com/citations?user=ptcnWOkAAAAJ&hl=en&authuser=1)\*,
 [Xiangyu Zhao](https://scholar.google.com/citations?user=eqFr7IgAAAAJ&hl=zh-TW&oi=ao)\*,
-[Xuehui Wang](https://scholar.google.com/citations?view_op=search_authors&mauthors=Xuehui+Wang),
+[Xuehui Wang](https://huiserwang.site/),
 
 [Yan Li](https://dblp.org/pid/87/660-98.html),
 [Xin Li](https://scholar.google.com/citations?user=-0Vmm04AAAAJ),
