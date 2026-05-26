@@ -211,7 +211,7 @@ python scripts/inference_sampled_frames.py \
 
 ### ⚖️ 4. LMM-as-a-Judge Evaluation
 
-After inference, evaluate model answers with the OpenRouter-based judge. Closed multiple-choice samples use the stored closed-question pass flag when available; open-ended samples are judged semantically against the reference answer.
+We provide an example evaluator that calls an LLM judge via an OpenAI-compatible API to assess model answers. Closed multiple-choice samples use the stored closed-question pass flag when available; open-ended samples are judged semantically against the reference answer.
 
 ```bash
 python scripts/eval_llm_judge_openrouter.py \
@@ -220,7 +220,7 @@ python scripts/eval_llm_judge_openrouter.py \
   --workers 8
 ```
 
-Set `OPENROUTER_API_KEY` before running the judge. The evaluator reports overall accuracy and grouped accuracy by answer type, video domain, subcategory, and task type.
+Set the appropriate API key (e.g., `OPENROUTER_API_KEY`) before running. The evaluator reports overall accuracy and grouped accuracy by answer type, video domain, subcategory, and task type.
 
 ## 📚 Citation
 
