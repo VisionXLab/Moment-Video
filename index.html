@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moment-Video: Diagnosing Temporal Fidelity of Video MLLMs</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --card: #fff;
+    --text: #1a1a2e;
+    --text-secondary: #555;
+    --border: #e5e5e5;
+    --accent: #4f46e5;
+    --accent-light: #eef2ff;
+    --gold: #b8860b;
+    --silver: #777;
+    --bronze: #b87333;
+    --tag-bg: #f3f4f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(250,250,250,.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+  }
+  nav .container { display: flex; gap: 28px; align-items: center; }
+  nav a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
+  nav a:hover { color: var(--accent); }
+
+  /* Hero */
+  .hero { text-align: center; padding: 64px 0 40px; }
+  .hero h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -.5px; margin-bottom: 12px; color: #111; }
+  .hero .affiliation { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
+  .hero .authors { font-size: 15px; margin-bottom: 6px; }
+  .hero .authors a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .hero .authors a:hover { text-decoration: underline; }
+  .hero .authors .star { color: var(--accent); font-size: 12px; vertical-align: super; }
+  .hero .links { display: flex; justify-content: center; gap: 14px; margin-top: 20px; flex-wrap: wrap; }
+  .hero .links a {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    text-decoration: none; transition: all .2s;
+  }
+  .btn-paper { background: #1a1a2e; color: #fff; }
+  .btn-paper:hover { background: #333; }
+  .btn-data { background: #fff; color: #1a1a2e; border: 1px solid var(--border); }
+  .btn-data:hover { background: #f5f5f5; }
+  .btn-code { background: #fff; color: #1a1a2e; border: 1px solid var(--border); }
+  .btn-code:hover { background: #f5f5f5; }
+
+  /* Section titles */
+  .section { padding: 48px 0; }
+  .section h2 {
+    font-size: 1.6rem; font-weight: 700; margin-bottom: 24px;
+    padding-bottom: 12px; border-bottom: 2px solid var(--accent-light);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section h2 .icon { font-size: 1.3rem; }
+
+  /* Abstract */
+  .abstract { font-size: 15px; color: var(--text-secondary); max-width: 900px; margin: 0 auto; text-align: justify; }
+
+  /* Task cards */
+  .task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .task-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; transition: box-shadow .2s;
+  }
+  .task-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+  .task-card .tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+  .tag-to { background: #fef3c7; color: #92400e; }
+  .tag-tc { background: #dbeafe; color: #1e40af; }
+  .tag-ad { background: #d1fae5; color: #065f46; }
+  .tag-tr { background: #fce7f3; color: #9d174d; }
+  .task-card h3 { font-size: 15px; margin-bottom: 6px; }
+  .task-card p { font-size: 13px; color: var(--text-secondary); }
+
+  /* Image showcase */
+  .showcase { text-align: center; }
+  .showcase img { max-width: 100%; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px; }
+
+  /* Leaderboard */
+  .lb-controls { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .lb-tab {
+    padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); cursor: pointer; font-size: 14px; font-weight: 600;
+    transition: all .2s; color: var(--text-secondary);
+  }
+  .lb-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .lb-tab:hover:not(.active) { background: #f0f0f0; }
+  .lb-filter {
+    margin-left: auto; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); font-size: 13px; cursor: pointer;
+  }
+  .table-wrap { overflow-x: auto; background: var(--card); border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th {
+    background: #f9fafb; padding: 10px 8px; text-align: center; font-weight: 700;
+    border-bottom: 2px solid var(--border); white-space: nowrap; position: sticky; top: 0;
+  }
+  thead th:first-child { text-align: left; padding-left: 14px; min-width: 200px; }
+  tbody td { padding: 8px; text-align: center; border-bottom: 1px solid #f3f4f6; }
+  tbody td:first-child { text-align: left; padding-left: 14px; white-space: nowrap; }
+  tbody tr:hover { background: #fafbff; }
+  tbody tr.best-row { background: #fffbeb; }
+  .model-cell { display: flex; align-items: center; gap: 8px; }
+  .model-cell img { width: 20px; height: 20px; border-radius: 4px; }
+  .best { font-weight: 700; }
+  .second { text-decoration: underline; text-underline-offset: 3px; }
+  .medal { font-size: 13px; }
+  .section-header td {
+    font-weight: 700; background: #f3f4f6; padding: 8px 14px;
+    font-size: 13px; text-align: left;
+  }
+
+  /* Citation */
+  .citation pre {
+    background: #1e1e2e; color: #cdd6f4; padding: 20px 24px; border-radius: 10px;
+    overflow-x: auto; font-size: 13px; line-height: 1.7;
+  }
+
+  /* Footer */
+  footer { text-align: center; padding: 40px 0; color: #999; font-size: 13px; border-top: 1px solid var(--border); margin-top: 20px; }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 1.6rem; }
+    .lb-filter { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="#home"><strong>Moment-Video</strong></a>
+    <a href="#abstract">Abstract</a>
+    <a href="#tasks">Tasks</a>
+    <a href="#leaderboard">Leaderboard</a>
+    <a href="#quickstart">Quick Start</a>
+    <a href="#citation">Citation</a>
+  </div>
+</nav>
+
+<!-- ====== Hero ====== -->
+<section class="hero" id="home">
+  <div class="container">
+    <h1>Moment-Video: Diagnosing Temporal Fidelity of<br>Video MLLMs on Momentary Visual Events</h1>
+    <div class="authors">
+      <a href="https://orcid.org/0009-0004-5440-5908">Xiaolin Liu</a><span class="star">*</span>&ensp;
+      <a href="https://scholar.google.com/citations?user=ptcnWOkAAAAJ">Yilun Zhu</a><span class="star">*</span>&ensp;
+      <a href="https://scholar.google.com/citations?user=eqFr7IgAAAAJ">Xiangyu Zhao</a><span class="star">*</span>&ensp;
+      <a href="#">Xuehui Wang</a>&ensp;
+      <a href="https://dblp.org/pid/87/660-98.html">Yan Li</a>&ensp;
+      <a href="https://scholar.google.com/citations?user=-0Vmm04AAAAJ">Xin Li</a>&ensp;
+      <a href="https://scholar.google.com/citations?hl=zh-CN&user=LV8ejn8AAAAJ">Haoyu Cao</a>&ensp;
+      <a href="https://scholar.google.com/citations?hl=zh-CN&user=IUtix9IAAAAJ">Xing Sun</a>
+    </div>
+    <div class="authors" style="margin-top:4px;">
+      <a href="https://sherrylone.github.io/">Shaofeng Zhang</a>&ensp;
+      <a href="https://scholar.google.com/citations?user=SqdxMH0AAAAJ">Xu Yang</a>&ensp;
+      <a href="https://zzh-tech.github.io/">Zhihang Zhong</a>&ensp;
+      <a href="https://yangxue.site/">Xue Yang</a>
+    </div>
+    <p style="font-size:13px;color:#999;margin-top:8px;"><span class="star">*</span> Equal contribution</p>
+    <div class="links">
+      <a href="https://arxiv.org/abs/XXXX.XXXXX" class="btn-paper" target="_blank">📄 arXiv (Coming Soon)</a>
+      <a href="https://huggingface.co/datasets/VisionXLab/Moment-Video" class="btn-data" target="_blank">🤗 HuggingFace Dataset</a>
+      <a href="https://github.com/VisionXLab/Moment-Video" class="btn-code" target="_blank">💻 GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Abstract ====== -->
+<section class="section" id="abstract">
+  <div class="container">
+    <h2><span class="icon">📖</span> Abstract</h2>
+    <div class="abstract">
+      <p>
+        <strong>Moment-Video</strong> is a benchmark for diagnosing the temporal fidelity of video multimodal large language models (MLLMs) on <strong>momentary visual events</strong>: localized actions or state transitions that may last only a few frames, yet determine the correct answer.
+      </p>
+      <p style="margin-top:12px;">
+        Unlike benchmarks centered on persistent objects, global scene context, or long-form semantic aggregation, Moment-Video asks whether models can notice, count, describe, and reason over brief answer-critical evidence. The benchmark contains <strong>1,000 human-verified video-QA pairs</strong> across <strong>7 domains</strong> and <strong>25 fine-grained subcategories</strong>, covering both real-world and virtual scenarios.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Video Categories ====== -->
+<section class="section showcase">
+  <div class="container">
+    <h2><span class="icon">🎬</span> Video Categories</h2>
+    <img src="images/video_category-1.png" alt="Video Categories">
+  </div>
+</section>
+
+<!-- ====== Task Types ====== -->
+<section class="section" id="tasks">
+  <div class="container">
+    <h2><span class="icon">🧪</span> Task Types</h2>
+    <div class="task-grid">
+      <div class="task-card">
+        <span class="tag tag-to">Temporal Occurrence</span>
+        <h3>TO</h3>
+        <p>Whether a brief event or state transition happens in the video.</p>
+      </div>
+      <div class="task-card">
+        <span class="tag tag-tc">Temporal Counting</span>
+        <h3>TC</h3>
+        <p>How many transient actions, object changes, or repeated events occur.</p>
+      </div>
+      <div class="task-card">
+        <span class="tag tag-ad">Action Description</span>
+        <h3>AD</h3>
+        <p>How a momentary event unfolds, including direction, trajectory, target, interaction, or state change.</p>
+      </div>
+      <div class="task-card">
+        <span class="tag tag-tr">Temporal Reasoning</span>
+        <h3>TR</h3>
+        <p>How the pre-event state, momentary event, and post-event state imply the final answer.</p>
+      </div>
+    </div>
+    <div class="showcase" style="margin-top:24px;">
+      <img src="images/task_category-1.png" alt="Task Categories">
+    </div>
+  </div>
+</section>
+
+<!-- ====== Leaderboard ====== -->
+<section class="section" id="leaderboard">
+  <div class="container">
+    <h2><span class="icon">🏆</span> Leaderboard</h2>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">
+      We evaluate <strong>33 proprietary and open-source video MLLMs</strong>. Seed-2.0-Pro/Lite/Mini and MIMO-v2.5 use their default frame-sampling settings.
+      Other models are evaluated with a 64-frame cap (50-frame cap for GPT-5.4). Switch between 1 FPS and 8 FPS results below.
+    </p>
+
+    <div class="lb-controls">
+      <button class="lb-tab active" onclick="switchTab('1fps')">1 FPS / Default</button>
+      <button class="lb-tab" onclick="switchTab('8fps')">8 FPS</button>
+      <select class="lb-filter" id="modelFilter" onchange="renderTable()">
+        <option value="all">All Models</option>
+        <option value="proprietary">Proprietary Only</option>
+        <option value="opensource">Open-source Only</option>
+      </select>
+    </div>
+
+    <div id="lb-task" style="margin-bottom:28px;">
+      <h3 style="font-size:15px;margin-bottom:10px;color:var(--text-secondary);">By Task Type</h3>
+      <div class="table-wrap"><table id="table-task"></table></div>
+    </div>
+    <div id="lb-domain">
+      <h3 style="font-size:15px;margin-bottom:10px;color:var(--text-secondary);">By Video Domain</h3>
+      <div class="table-wrap"><table id="table-domain"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Quick Start ====== -->
+<section class="section" id="quickstart">
+  <div class="container">
+    <h2><span class="icon">🚀</span> Quick Start</h2>
+    <h3 style="font-size:15px;margin-bottom:8px;">1. Data Preparation</h3>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">
+      Benchmark annotations are in <code>data/annotation_all.csv</code> and <code>data/annotation_all.json</code>. Place videos under:
+    </p>
+    <pre style="background:#1e1e2e;color:#cdd6f4;padding:12px 16px;border-radius:8px;font-size:13px;">data/videos/{Category}/{Subclass}/{Index}.mp4</pre>
+
+    <h3 style="font-size:15px;margin:20px 0 8px;">2. Native Video Inference</h3>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:8px;">For OpenAI-compatible endpoints accepting native <code>video_url</code> input.</p>
+    <pre style="background:#1e1e2e;color:#cdd6f4;padding:12px 16px;border-radius:8px;font-size:13px;">python scripts/inference_native_video.py \
+  --input-csv data/annotation_all.csv \
+  --video-root data/videos \
+  --output-dir result/output \
+  --model Qwen3-VL-4B-Instruct \
+  --base-url http://127.0.0.1:8085/v1</pre>
+
+    <h3 style="font-size:15px;margin:20px 0 8px;">3. Sampled-Frame Inference</h3>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:8px;">For models that consume sampled frames as multiple image inputs.</p>
+    <pre style="background:#1e1e2e;color:#cdd6f4;padding:12px 16px;border-radius:8px;font-size:13px;">python scripts/inference_sampled_frames.py \
+  --input-csv data/annotation_all.csv \
+  --video-root data/videos \
+  --output-dir result/output_frames \
+  --model Kimi-2.6 \
+  --base-url http://127.0.0.1:8085/v1 \
+  --sample-fps 1 \
+  --max-sampled-frames 64</pre>
+
+    <h3 style="font-size:15px;margin:20px 0 8px;">4. Evaluation</h3>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:8px;">Example evaluator calling an LLM judge via an OpenAI-compatible API.</p>
+    <pre style="background:#1e1e2e;color:#cdd6f4;padding:12px 16px;border-radius:8px;font-size:13px;">python scripts/eval_llm_judge_openrouter.py \
+  --input-csv result/output/result_video_{MODEL_NAME}_{TIMESTAMP}.csv \
+  --output-dir result/judge \
+  --workers 8</pre>
+    <p style="color:var(--text-secondary);font-size:13px;margin-top:6px;">Set the appropriate API key (e.g., <code>OPENROUTER_API_KEY</code>) before running.</p>
+  </div>
+</section>
+
+<!-- ====== Citation ====== -->
+<section class="section" id="citation">
+  <div class="container">
+    <h2><span class="icon">📚</span> Citation</h2>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">Citation will be added after the arXiv version is available.</p>
+    <pre>Coming soon.</pre>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>Moment-Video Benchmark &copy; 2025. Hosted on <a href="https://github.com/VisionXLab/Moment-Video" style="color:var(--accent);">GitHub</a>.</p>
+  </div>
+</footer>
+
+<script>
+// ===== DATA =====
+// Columns: Model, Logo, Input, TO, TC, AD, TR, AIGC, GUI, Nature, Industry, Games, Human, Animal, Overall
+
+const data1fps = [
+  // Proprietary
+  {model:"Seed-2.0-Pro", logo:"SEED.png", input:"default", to:50.37, tc:31.14, ad:47.08, tr:42.35, aigc:45.57, gui:33.94, nature:69.44, industry:41.32, games:39.37, human:27.20, animal:55.00, overall:39.6, group:"Proprietary"},
+  {model:"Seed-2.0-Lite", logo:"SEED.png", input:"default", to:34.81, tc:25.64, ad:36.04, tr:40.00, aigc:22.78, gui:27.98, nature:51.39, industry:30.58, games:25.62, human:26.80, animal:52.00, overall:31.3, group:"Proprietary"},
+  {model:"Seed-2.0-Mini", logo:"SEED.png", input:"default", to:32.59, tc:22.88, ad:33.77, tr:25.88, aigc:24.05, gui:22.94, nature:58.33, industry:29.75, games:22.50, human:20.80, animal:43.00, overall:27.8, group:"Proprietary"},
+  {model:"Gemini-3.1-Pro", logo:"gemini.png", input:"1fps", to:32.59, tc:19.70, ad:33.44, tr:34.12, aigc:27.85, gui:27.52, nature:44.44, industry:18.18, games:24.37, human:19.20, animal:46.00, overall:26.9, group:"Proprietary"},
+  {model:"Gemini-3-Flash", logo:"gemini.png", input:"1fps", to:41.48, tc:18.43, ad:31.82, tr:32.94, aigc:45.57, gui:20.64, nature:43.06, industry:15.70, games:20.62, human:23.20, animal:47.00, overall:26.9, group:"Proprietary"},
+  {model:"Gemini-3.1-Flash-Lite", logo:"gemini.png", input:"1fps", to:34.07, tc:18.64, ad:30.52, tr:27.06, aigc:27.85, gui:22.02, nature:41.67, industry:22.31, games:20.00, human:14.00, animal:57.00, overall:25.1, group:"Proprietary"},
+  {model:"GPT-5.4", logo:"openai.png", input:"1fps", to:21.48, tc:12.08, ad:30.19, tr:29.41, aigc:6.33, gui:23.85, nature:40.28, industry:4.96, games:18.75, human:18.00, animal:37.00, overall:20.4, group:"Proprietary"},
+  // Open-source
+  {model:"Kimi-2.6", logo:"kimi.png", input:"1fps", to:25.93, tc:15.89, ad:36.69, tr:30.59, aigc:15.19, gui:37.16, nature:41.67, industry:12.40, games:16.25, human:20.40, animal:34.00, overall:24.9, group:"Open-source"},
+  {model:"Qwen3.5-27B", logo:"qwen.png", input:"1fps", to:20.74, tc:19.07, ad:32.47, tr:27.06, aigc:11.39, gui:21.56, nature:41.67, industry:18.18, games:18.75, human:20.00, animal:53.00, overall:24.1, group:"Open-source"},
+  {model:"Qwen3.5-397B-A17B", logo:"qwen.png", input:"1fps", to:27.41, tc:14.83, ad:32.79, tr:23.53, aigc:16.46, gui:23.39, nature:47.22, industry:18.18, games:17.50, human:14.80, animal:43.00, overall:22.8, group:"Open-source"},
+  {model:"Qwen3.6-27B", logo:"qwen.png", input:"1fps", to:19.26, tc:17.16, ad:31.82, tr:23.53, aigc:10.13, gui:26.61, nature:41.67, industry:19.01, games:16.25, human:14.40, animal:44.00, overall:22.5, group:"Open-source"},
+  {model:"MIMO-v2.5", logo:"MIMO.png", input:"default", to:18.52, tc:17.16, ad:30.84, tr:23.53, aigc:2.53, gui:24.31, nature:52.78, industry:19.01, games:19.38, human:14.80, animal:37.00, overall:22.1, group:"Open-source"},
+  {model:"Qwen3.5-122B-A10B", logo:"qwen.png", input:"1fps", to:25.19, tc:14.19, ad:27.60, tr:23.53, aigc:18.99, gui:22.02, nature:40.28, industry:17.36, games:13.75, human:14.40, animal:35.00, overall:20.6, group:"Open-source"},
+  {model:"Qwen3.6-35B-A3B", logo:"qwen.png", input:"1fps", to:17.04, tc:14.41, ad:29.22, tr:24.71, aigc:3.80, gui:18.35, nature:41.67, industry:22.31, games:15.62, human:15.20, animal:39.00, overall:20.2, group:"Open-source"},
+  {model:"Qwen3.5-35B-A3B", logo:"qwen.png", input:"1fps", to:20.00, tc:16.10, ad:26.30, tr:18.82, aigc:8.86, gui:19.27, nature:45.83, industry:19.83, games:13.75, human:12.80, animal:40.00, overall:20.0, group:"Open-source"},
+  {model:"Gemma-4-31B", logo:"deepmind-color.png", input:"1fps", to:30.37, tc:13.56, ad:24.35, tr:22.35, aigc:27.85, gui:11.93, nature:41.67, industry:17.36, games:15.62, human:15.60, animal:36.00, overall:19.9, group:"Open-source"},
+  {model:"Qwen3.5-9B", logo:"qwen.png", input:"1fps", to:18.52, tc:13.35, ad:26.62, tr:18.82, aigc:10.13, gui:17.43, nature:40.28, industry:12.40, games:11.87, human:14.80, animal:40.00, overall:18.6, group:"Open-source"},
+  {model:"Qwen3.5-4B", logo:"qwen.png", input:"1fps", to:19.26, tc:13.77, ad:21.43, tr:17.65, aigc:8.86, gui:16.97, nature:38.89, industry:13.22, games:15.00, human:11.20, animal:32.00, overall:17.2, group:"Open-source"},
+  {model:"Qwen3-VL-235B-A22B", logo:"qwen.png", input:"1fps", to:15.56, tc:12.08, ad:23.38, tr:23.53, aigc:5.06, gui:16.97, nature:38.89, industry:10.74, games:10.62, human:14.00, animal:36.00, overall:17.0, group:"Open-source"},
+  {model:"InternVL3.5-30B-A3B", logo:"internlm.png", input:"1fps", to:12.59, tc:16.10, ad:21.75, tr:11.76, aigc:3.80, gui:10.55, nature:38.89, industry:15.70, games:15.00, human:18.40, animal:27.00, overall:17.0, group:"Open-source"},
+  {model:"Qwen3-VL-30B-A3B", logo:"qwen.png", input:"1fps", to:18.52, tc:13.14, ad:20.45, tr:20.00, aigc:8.86, gui:14.22, nature:43.06, industry:14.05, games:15.62, human:9.60, animal:32.00, overall:16.7, group:"Open-source"},
+  {model:"InternVL3.5-8B", logo:"internlm.png", input:"1fps", to:15.56, tc:15.04, ad:20.13, tr:15.29, aigc:3.80, gui:11.93, nature:38.89, industry:13.22, games:13.75, human:14.00, animal:37.00, overall:16.7, group:"Open-source"},
+  {model:"LLaVA-Video-72B", logo:"llava.png", input:"1fps", to:13.33, tc:15.04, ad:18.83, tr:17.65, aigc:0.00, gui:8.26, nature:34.72, industry:19.83, games:16.25, human:15.20, animal:31.00, overall:16.2, group:"Open-source"},
+  {model:"InternVL3.5-241B-A28B", logo:"internlm.png", input:"1fps", to:19.26, tc:11.02, ad:20.45, tr:18.82, aigc:1.27, gui:12.39, nature:40.28, industry:9.09, games:11.87, human:13.60, animal:36.00, overall:15.7, group:"Open-source"},
+  {model:"Keye-VL-1.5-8B", logo:"keye.png", input:"1fps", to:14.81, tc:12.92, ad:20.45, tr:14.12, aigc:0.00, gui:10.09, nature:29.17, industry:17.36, games:14.40, human:14.40, animal:33.00, overall:15.6, group:"Open-source"},
+  {model:"InternVL3.5-4B", logo:"internlm.png", input:"1fps", to:14.81, tc:13.14, ad:17.86, tr:7.06, aigc:3.80, gui:10.55, nature:29.17, industry:14.05, games:13.75, human:10.80, animal:30.00, overall:14.3, group:"Open-source"},
+  {model:"GLM-4.6V", logo:"zai.png", input:"1fps", to:15.56, tc:8.69, ad:19.81, tr:21.18, aigc:5.06, gui:10.55, nature:31.94, industry:7.44, games:11.25, human:12.40, animal:33.00, overall:14.1, group:"Open-source"},
+  {model:"Qwen3-VL-8B", logo:"qwen.png", input:"1fps", to:15.56, tc:10.59, ad:17.86, tr:16.47, aigc:8.86, gui:13.30, nature:41.67, industry:9.92, games:6.88, human:8.80, animal:29.00, overall:14.0, group:"Open-source"},
+  {model:"Qwen3-VL-4B", logo:"qwen.png", input:"1fps", to:14.81, tc:8.69, ad:19.48, tr:21.18, aigc:1.27, gui:14.22, nature:41.67, industry:7.44, games:9.38, human:9.20, animal:30.00, overall:13.9, group:"Open-source"},
+  {model:"LLaVA-Video-7B", logo:"llava.png", input:"1fps", to:11.11, tc:13.14, ad:13.96, tr:7.06, aigc:0.00, gui:8.72, nature:23.61, industry:8.26, games:15.62, human:12.80, animal:23.00, overall:12.6, group:"Open-source"},
+  {model:"VideoLLaMA3-7B", logo:"videollama.png", input:"1fps", to:7.52, tc:13.69, ad:11.72, tr:8.33, aigc:0.00, gui:10.44, nature:25.35, industry:4.96, games:10.14, human:15.64, animal:15.00, overall:11.8, group:"Open-source"},
+  {model:"GLM-4.6V-Flash", logo:"zai.png", input:"1fps", to:11.11, tc:7.20, ad:14.29, tr:20.00, aigc:1.27, gui:8.72, nature:43.06, industry:13.22, games:10.00, human:6.00, animal:12.00, overall:11.0, group:"Open-source"},
+  {model:"VITA-1.5", logo:"VITA.png", input:"1fps", to:19.26, tc:8.49, ad:13.42, tr:10.59, aigc:0.00, gui:5.31, nature:25.00, industry:8.26, games:11.25, human:8.80, animal:26.00, overall:10.6, group:"Open-source"},
+];
+
+const data8fps = [
+  // Proprietary
+  {model:"Gemini-3-Flash", logo:"gemini.png", input:"8fps", to:40.00, tc:27.97, ad:49.03, tr:38.82, aigc:37.97, gui:37.61, nature:56.94, industry:26.45, games:35.63, human:28.00, animal:58.00, overall:37.0, group:"Proprietary"},
+  {model:"Gemini-3.1-Pro", logo:"gemini.png", input:"8fps", to:40.00, tc:27.75, ad:45.45, tr:44.71, aigc:35.44, gui:34.86, nature:58.33, industry:38.02, games:35.00, human:23.60, animal:56.00, overall:36.3, group:"Proprietary"},
+  {model:"Gemini-3.1-Flash-Lite", logo:"gemini.png", input:"8fps", to:34.81, tc:24.79, ad:37.34, tr:38.82, aigc:27.85, gui:27.98, nature:55.56, industry:29.75, games:25.00, human:21.20, animal:60.00, overall:31.2, group:"Proprietary"},
+  {model:"GPT-5.4", logo:"openai.png", input:"8fps", to:32.59, tc:21.19, ad:40.26, tr:35.29, aigc:22.78, gui:34.40, nature:41.67, industry:19.83, games:29.38, human:20.00, animal:54.00, overall:29.8, group:"Proprietary"},
+  // Open-source
+  {model:"Qwen3.5-122B-A10B", logo:"qwen.png", input:"8fps", to:39.26, tc:19.49, ad:34.42, tr:27.06, aigc:39.24, gui:23.39, nature:38.89, industry:23.14, games:21.25, human:20.40, animal:51.00, overall:27.4, group:"Open-source"},
+  {model:"Qwen3.6-27B", logo:"qwen.png", input:"8fps", to:28.89, tc:21.40, ad:34.74, tr:30.59, aigc:24.05, gui:26.15, nature:45.83, industry:23.14, games:23.75, human:19.20, animal:50.00, overall:27.3, group:"Open-source"},
+  {model:"Qwen3.5-397B-A17B", logo:"qwen.png", input:"8fps", to:29.63, tc:17.16, ad:36.69, tr:25.88, aigc:18.99, gui:24.31, nature:50.00, industry:13.22, games:20.00, human:19.60, animal:55.00, overall:25.6, group:"Open-source"},
+  {model:"Qwen3-VL-235B-A22B", logo:"qwen.png", input:"8fps", to:16.30, tc:22.67, ad:33.12, tr:28.24, aigc:5.06, gui:26.61, nature:50.00, industry:21.49, games:22.50, human:19.60, animal:46.00, overall:25.5, group:"Open-source"},
+  {model:"Qwen3.5-27B", logo:"qwen.png", input:"8fps", to:22.22, tc:19.92, ad:36.36, tr:20.00, aigc:12.66, gui:24.31, nature:52.78, industry:20.66, games:22.50, human:15.20, animal:53.00, overall:25.3, group:"Open-source"},
+  {model:"Qwen3.6-35B-A3B", logo:"qwen.png", input:"8fps", to:28.15, tc:19.49, ad:32.47, tr:21.18, aigc:21.52, gui:22.48, nature:40.28, industry:21.49, games:20.62, human:18.40, animal:48.00, overall:24.8, group:"Open-source"},
+  {model:"Gemma-4-31B", logo:"deepmind-color.png", input:"8fps", to:32.59, tc:17.16, ad:31.17, tr:27.06, aigc:26.58, gui:16.97, nature:47.22, industry:17.36, games:23.75, human:15.60, animal:54.00, overall:24.4, group:"Open-source"},
+  {model:"Qwen3.5-35B-A3B", logo:"qwen.png", input:"8fps", to:19.26, tc:17.58, ad:36.04, tr:21.18, aigc:8.86, gui:23.85, nature:55.56, industry:17.36, games:16.25, human:18.00, animal:47.00, overall:23.8, group:"Open-source"},
+  {model:"Qwen3.5-9B", logo:"qwen.png", input:"8fps", to:34.81, tc:15.89, ad:31.17, tr:20.00, aigc:35.44, gui:22.02, nature:50.00, industry:12.40, games:13.75, human:15.20, animal:48.00, overall:23.5, group:"Open-source"},
+  {model:"Qwen3-VL-30B-A3B", logo:"qwen.png", input:"8fps", to:15.56, tc:15.47, ad:26.30, tr:22.35, aigc:7.59, gui:16.51, nature:48.61, industry:15.70, games:18.12, human:13.20, animal:36.00, overall:19.4, group:"Open-source"},
+  {model:"InternVL3.5-241B-A28B", logo:"internlm.png", input:"8fps", to:18.52, tc:14.41, ad:25.65, tr:20.00, aigc:6.33, gui:12.84, nature:45.83, industry:7.44, games:20.60, human:15.20, animal:43.00, overall:18.9, group:"Open-source"},
+  {model:"Qwen3.5-4B", logo:"qwen.png", input:"8fps", to:17.04, tc:17.58, ad:23.05, tr:11.76, aigc:7.59, gui:15.60, nature:44.44, industry:14.05, games:13.13, human:14.80, animal:40.00, overall:18.7, group:"Open-source"},
+  {model:"Qwen3-VL-8B", logo:"qwen.png", input:"8fps", to:20.00, tc:15.04, ad:22.73, tr:18.82, aigc:16.46, gui:16.06, nature:41.67, industry:11.57, games:11.25, human:13.20, animal:41.00, overall:18.4, group:"Open-source"},
+  {model:"InternVL3.5-30B-A3B", logo:"internlm.png", input:"8fps", to:17.78, tc:14.19, ad:23.70, tr:16.47, aigc:6.33, gui:12.84, nature:44.44, industry:19.10, games:16.88, human:12.80, animal:31.00, overall:17.8, group:"Open-source"},
+  {model:"InternVL3.5-8B", logo:"internlm.png", input:"8fps", to:14.81, tc:16.10, ad:20.78, tr:16.47, aigc:2.53, gui:10.55, nature:41.67, industry:16.53, games:16.88, human:13.60, animal:38.00, overall:17.4, group:"Open-source"},
+  {model:"InternVL3.5-4B", logo:"internlm.png", input:"8fps", to:15.56, tc:15.89, ad:21.43, tr:10.59, aigc:5.06, gui:11.47, nature:31.94, industry:14.88, games:15.62, human:13.60, animal:42.00, overall:17.1, group:"Open-source"},
+  {model:"GLM-4.6V", logo:"zai.png", input:"8fps", to:14.81, tc:9.32, ad:21.75, tr:20.00, aigc:2.53, gui:11.47, nature:36.11, industry:9.92, games:10.62, human:13.60, animal:34.00, overall:14.80, group:"Open-source"},
+  {model:"Qwen3-VL-4B", logo:"qwen.png", input:"8fps", to:15.56, tc:10.38, ad:19.48, tr:14.12, aigc:3.80, gui:11.47, nature:44.44, industry:9.92, games:9.38, human:8.80, animal:33.00, overall:14.2, group:"Open-source"},
+  {model:"Keye-VL-1.5-8B", logo:"keye.png", input:"8fps", to:15.56, tc:11.44, ad:17.86, tr:9.41, aigc:2.53, gui:7.80, nature:31.94, industry:12.40, games:10.62, human:14.80, animal:27.00, overall:13.8, group:"Open-source"},
+  {model:"LLaVA-Video-7B", logo:"llava.png", input:"8fps", to:11.11, tc:12.92, ad:15.26, tr:10.59, aigc:1.27, gui:8.26, nature:31.94, industry:12.40, games:16.88, human:10.80, animal:21.00, overall:13.2, group:"Open-source"},
+  {model:"GLM-4.6V-Flash", logo:"zai.png", input:"8fps", to:12.59, tc:6.99, ad:15.26, tr:18.82, aigc:0.00, gui:8.62, nature:45.83, industry:14.05, games:10.00, human:6.00, animal:14.00, overall:11.3, group:"Open-source"},
+  {model:"VideoLLaMA3-7B", logo:"videollama.png", input:"8fps", to:8.89, tc:11.44, ad:8.12, tr:5.88, aigc:0.00, gui:4.59, nature:22.22, industry:7.44, games:11.87, human:12.40, animal:11.00, overall:9.6, group:"Open-source"},
+];
+
+let currentTab = '1fps';
+
+const taskCols = ['to','tc','ad','tr','overall'];
+const taskHeaders = ['TO','TC','AD','TR','Overall'];
+const domainCols = ['aigc','gui','nature','industry','games','human','animal','overall'];
+const domainHeaders = ['AIGC','GUI','Nature','Industry','Games','Human','Animal','Overall'];
+
+function getData() { return currentTab === '1fps' ? data1fps : data8fps; }
+
+function findBestSecond(vals) {
+  let sorted = vals.map((v,i) => ({v,i})).sort((a,b) => b.v - a.v);
+  let res = new Array(vals.length).fill('');
+  if (sorted.length > 0) res[sorted[0].i] = 'best';
+  if (sorted.length > 1) res[sorted[1].i] = 'second';
+  return res;
+}
+
+function renderTable() {
+  let data = getData();
+  let filter = document.getElementById('modelFilter').value;
+  if (filter === 'proprietary') data = data.filter(d => d.group === 'Proprietary');
+  if (filter === 'opensource') data = data.filter(d => d.group === 'Open-source');
+
+  // Compute best/second per numeric column (within the visible set)
+  let allCols = [...taskCols.slice(0,-1), ...domainCols.slice(0,-1)]; // exclude overall from per-column marking (we do it separately)
+  let marks = {};
+  allCols.forEach(col => {
+    let vals = data.map(d => d[col]);
+    marks[col] = findBestSecond(vals);
+  });
+  // Overall column too
+  marks['overall'] = findBestSecond(data.map(d => d.overall));
+
+  // --- Task Type table ---
+  let taskHtml = `<thead><tr><th>#</th><th>Model</th><th>Input</th>`;
+  taskHeaders.forEach(h => taskHtml += `<th>${h} (%)</th>`);
+  taskHtml += `</tr></thead><tbody>`;
+
+  let lastGroup = '';
+  data.forEach((d,i) => {
+    if (d.group !== lastGroup) {
+      lastGroup = d.group;
+      taskHtml += `<tr class="section-header"><td colspan="${8}">${lastGroup} Models</td></tr>`;
+    }
+    taskHtml += `<tr>`;
+    taskHtml += `<td>${i+1}</td>`;
+    taskHtml += `<td><div class="model-cell"><img src="images/${d.logo}" alt="">${d.model}</div></td>`;
+    taskHtml += `<td style="font-size:11px;color:#888;">${d.input}</td>`;
+    taskCols.forEach(col => {
+      let cls = marks[col] ? marks[col][i] : '';
+      let v = d[col].toFixed(2);
+      taskHtml += `<td class="${cls}">${v}</td>`;
+    });
+    taskHtml += `</tr>`;
+  });
+  taskHtml += `</tbody>`;
+  document.getElementById('table-task').innerHTML = taskHtml;
+
+  // --- Domain table ---
+  let domHtml = `<thead><tr><th>#</th><th>Model</th><th>Input</th>`;
+  domainHeaders.forEach(h => domHtml += `<th>${h} (%)</th>`);
+  domHtml += `</tr></thead><tbody>`;
+
+  lastGroup = '';
+  data.forEach((d,i) => {
+    if (d.group !== lastGroup) {
+      lastGroup = d.group;
+      domHtml += `<tr class="section-header"><td colspan="${11}">${lastGroup} Models</td></tr>`;
+    }
+    domHtml += `<tr>`;
+    domHtml += `<td>${i+1}</td>`;
+    domHtml += `<td><div class="model-cell"><img src="images/${d.logo}" alt="">${d.model}</div></td>`;
+    domHtml += `<td style="font-size:11px;color:#888;">${d.input}</td>`;
+    domainCols.forEach(col => {
+      let cls = marks[col] ? marks[col][i] : '';
+      let v = d[col].toFixed(2);
+      domHtml += `<td class="${cls}">${v}</td>`;
+    });
+    domHtml += `</tr>`;
+  });
+  domHtml += `</tbody>`;
+  document.getElementById('table-domain').innerHTML = domHtml;
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.lb-tab').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.lb-tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+  renderTable();
+}
+
+renderTable();
+</script>
+
+</body>
+</html>
